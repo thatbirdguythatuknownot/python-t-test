@@ -559,7 +559,7 @@ def pvar(*arrs): # pooled variance / pooled stddev
 @oideco(2)
 def otstat(arr, apmean): # one-sample t-test
     n = len(arr)
-    return (mean(x) - apmean) * n**(1/2) / sstd(arr), n - 1
+    return (mean(arr) - apmean) * n**(1/2) / sstd(arr), n - 1
 
 @oideco(2)
 def ptstat(arr1, arr2): # paired samples t-test
