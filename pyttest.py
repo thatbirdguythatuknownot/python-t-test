@@ -21,7 +21,8 @@ beta(a, b)                   - beta function
 rbeta(x, p, q)               - regularized incomplete beta function
 invrbeta(yy, aa, bb)         - inverse function of `rbeta()`
 stdtri(confidence, df)       - inverse function of `cdf()`
-tcritv(alpha, df)            - critical t value function
+tcritv(alpha, df, tn=2)      - critical t value function
+                               ("tail number" can either be 1 or 2)
 cdf(t, v)                    - cumulative distribution function
 sstd(arr)                    - sample standard deviation function
 pstd(arr)                    - population standard deviation function
@@ -528,8 +529,13 @@ def stdtri(confidence, df):
 ##----------------------------##
 
 @oideco_C
-def tcritv(alpha, df): # t critical value
-    return stdtri(1 - alpha/2, df)
+def tcritv(alpha, df, tn=2): # t critical value
+    if tn == 2:
+        alpha /= 2
+    elif tn != 1:
+        raise ValueError("invalid tail number") 
+    return stdtri(1 - alpha, df)
+    
 
 @oideco_C
 def cdf(t, v): # cumulative distribution function
