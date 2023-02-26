@@ -7,6 +7,9 @@ EPS = sys.float_info.epsilon
 DBL_MAX = sys.float_info.max
 INF = float('inf')
 NAN = float('nan')
+MACHEP = 2**-53
+MAXLOG = math.log(2**1024)
+MINLOG = math.log(2**-1022)
 
 ---------------
 
@@ -46,9 +49,10 @@ from operator import sub
 from sys import float_info
 from types import FunctionType
 
-__all__ = ['EPS', 'DBL_MAX', 'INF', 'NAN', 'mean', 'pdf', 'lnbeta', 'labeta',
-           'beta', 'rbeta', 'invrbeta', 'stdtri', 'tcritv', 'cdf', 'sstd',
-           'pstd', 'pvar', 'otstat', 'ptstat', 'itstat']
+__all__ = ['EPS', 'DBL_MAX', 'INF', 'NAN', 'MACHEP', 'MAXLOG', 'MINLOG',
+           'mean', 'pdf', 'lnbeta', 'labeta', 'beta', 'rbeta', 'invrbeta',
+           'stdtri', 'tcritv', 'cdf', 'sstd', 'pstd', 'pvar', 'otstat',
+           'ptstat', 'itstat']
 
 EPS = float_info.epsilon
 DBL_MAX = float_info.max
@@ -168,52 +172,16 @@ def lnbeta(a, b): # ln of beta
 def beta(a, b): # beta function
     return exp(lnbeta(a, b))
 
-"""
-@oideco_C
-def rbeta(x, p, q): # regularized incomplete beta function
-    if x > p/(p+q):
-        return 1 - rbeta(1-x, q, p)
-    K = exp(p * log(x) + (q - 1) * log(x_1x := 1 - x)
-            - log(p) - lnbeta(p, q))
-    f = q*x / p / x_1x
-    p_f = p*f
-    p_q = p*q
-    q_4 = q*4
-    F0_i = p_f*p_f / q*q
-    p_m1 = p - 1
-    p_m2 = p - 2
-    p_m3 = p - 3
-    p_pq_m2 = p_m2 + q
-    N0_0 = 2*p_f + q_4
-    N0_1 = p_q * (p_m2-p_f)
-    D0_0 = q_4 * p_m1
-    D0_1 = p_q * p_m2
-    a_n_ = p_f * (q - 1) / q / (p + 1)
-    b_n_ = (N0_0*p + N0_1) / (q_4*p + D0_1)
-    am1 = bm1 = 1
-    am0, bm0 = a_n_ + b_n_, b_n_
-    n = 2
-    for n in range(2, 101):
-        n_2 = n*2
-        a_n_ = (F0_i * (n-1) * (p_pq_m2+n) * (p_m1_pn := p_m1 + n) * (q-n)
-               / (p_m3+n_2) / (p_m2+n_2)**2 / (p_m1+n_2))
-        b_n_ = (N0_0 * n * p_m1_pn + N0_1) / (n*q_4*p_m1_pn + D0_1)
-        am1, am0 = am0, am1*a_n_ + am0*b_n_
-        bm1, bm0 = bm0, bm1*a_n_ + bm0*b_n_
-        n += 1
-    return K * am0 / bm0
-"""
-
 ##----------------------------##
 
 # https://malishoaib.wordpress.com/tag/complete-beta-function/
 ##----------------------------##
 # redefine beta() function because previous definition was a little inaccurate
-# assign old beta() to `la_beta` meaning "less accurate beta"
-la_beta = beta
+# assign old beta() to `labeta` meaning "less accurate beta"
+labeta = beta
 @oideco_C
-def beta(p, q): # beta function
-    return gamma(p)*gamma(q) / gamma(p + q)
+def beta(a, b): # beta function
+    return gamma(a)*gamma(b) / gamma(a + b)
 
 @oideco_C
 def cfbeta(a, b, x): # contfractbeta
@@ -226,26 +194,21 @@ def cfbeta(a, b, x): # contfractbeta
     while True:
         tem = em + em
         a_ptem = a + tem
-        d = em*(b-em)*x / (qam+tem) / a_ptem
-        ap = az + d*am
+        ap = az + (d := em*(b-em)*x / ((qam + tem)*a_ptem))*am
         bp = bz + d*bm
-        d = -(a+em)*(qab+em)*x / (qap+tem) / a_ptem
-        app = ap + d*az
-        bpp = bp + d*bz
+        bpp = bp + (d := -(a+em)*(qab+em)*x / ((qap + tem)*a_ptem)) * bz
         aold = az
-        am = ap/bpp
-        bm = bp/bpp
-        az = app/bpp
-        bz = 1
-        if abs(az - aold) < EPS*abs(az):
+        if 2**-53 * abs(az := (ap + d*az) / bpp) > abs(az - aold):
             return az
+        bz = 1
+        am = ap / bpp
+        bm = bp / bpp
         em += 1
 
 @oideco_C
 def rbeta(x, a, b): # regularized beta function
     if x not in {0, 1}:
-        _beta = exp(lgamma(a+b) - lgamma(a) - lgamma(b)
-                    + a * log(x) + b * log(1-x))
+        _beta = gamma(a+b)/gamma(a)/gamma(b) * x**a * (1-x)**b
         if x < (a+1) / (a+b+2):
             return _beta*cfbeta(a, b, x) / a
         else:
@@ -489,7 +452,7 @@ def invrbeta(yy, aa, bb, *, # inverse regularized incomplete beta function
         x = 2 / (inv_da_m1 + inv_db_m1)
         d = (yp*(x + lgm)**(1/2) / x
             - (inv_db_m1 - inv_da_m1)
-              * (lgm + 5/6 - 2/3/x))*2
+              * (lgm + 5/6 - 2/(3*x)))*2
         if d < -708.396418532264106224:
             return exit_f()
         y = rbeta(x := a / (a + b*exp(d)), a, b)
@@ -581,8 +544,23 @@ def itstat(arr1, arr2, eva=True): # independent samples t-test /
     l_a = len(arr1)
     l_b = len(arr2)
     if eva:
-        return mn_diff / pvar(arr1, arr2) / (1/l_a + 1/l_b)**(1/2), l_a + l_b - 2
+        return mn_diff / (pvar(arr1, arr2) * (1/l_a + 1/l_b)**(1/2)), l_a + l_b - 2
     sl_a = sstd(arr1)**2 / l_a
     sl_b = sstd(arr2)**2 / l_b
     return (mn_diff / (sl_a_psl_b := sl_a + sl_b)**(1/2),
-            sl_a_psl_b**2 // (sl_a**2/(l_a - 1) + sl_b**2/(l_b - 1)))
+            sl_a_psl_b**2 / (sl_a**2/(l_a - 1) + sl_b**2/(l_b - 1)))
+
+if __name__ == '__main__':
+    from math import ceil, sqrt
+    from traceback import print_exception
+    ns = {x: eval(x)
+          for x in __all__ + ['exp', 'gamma', 'lgamma',
+                              'log', 'int', 'ceil', 'sqrt',
+                              'sum']}
+    while True:
+        try:
+            a = eval(input('>>> '), {'__builtins__': {}}, ns)
+            if a is not None:
+                print(repr(a))
+        except BaseException as e:
+            print_exception(type(e), e, e.__traceback__)
