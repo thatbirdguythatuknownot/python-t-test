@@ -26,11 +26,19 @@ invrbeta(yy, aa, bb)         - inverse function of `rbeta()`
 stdtri(confidence, df)       - inverse function of `cdf()`
 tcritv(alpha, df, tn=2)      - critical t value function
                                ("tail number" can either be 1 or 2)
+tpval(t, df, tp=2)           - t-test p-value function
+                               ("test type" can be:
+                                0 for left-tail/lower-tailed t-test,
+                                1 for right-tail/upper-tailed t-test,
+                                2 for two-tail t-test [not symmetric about 0],
+                                3 for two-tail t-test [symmetric about 0])
 cdf(t, v)                    - cumulative distribution function
 sstd(arr)                    - sample standard deviation function
 pstd(arr)                    - population standard deviation function
 pvar(*arrs)                  - pooled variance
                                (pooled standard deviation) function
+
+- t-test functions returning (t statistic, degrees of freedom)
 otstat(arr, apmean)           - one-sample t-test
                                 (provide assumed population mean)
 ptstat(arr1, arr2)           - paired samples t-test
@@ -39,6 +47,14 @@ itstat(arr1, arr2, eva=True) - independent samples t-test /
                                (provide "equal variance assumed")
 
 ---------------
+
+-- INTERACTIVE MODE --
+
+Enter interactive mode by directly running the file.
+Interactive mode can be quitted by sending a Ctrl+Z then Enter (Windows)
+or Ctrl+D then Enter (Linux).
+
+----------------------
 
 """
 
@@ -51,8 +67,8 @@ from types import FunctionType
 
 __all__ = ['EPS', 'DBL_MAX', 'INF', 'NAN', 'MACHEP', 'MAXLOG', 'MINLOG',
            'mean', 'pdf', 'lnbeta', 'labeta', 'beta', 'rbeta', 'invrbeta',
-           'stdtri', 'tcritv', 'cdf', 'sstd', 'pstd', 'pvar', 'otstat',
-           'ptstat', 'itstat']
+           'stdtri', 'tcritv', 'tpval', 'cdf', 'sstd', 'pstd', 'pvar',
+           'otstat', 'ptstat', 'itstat']
 
 EPS = float_info.epsilon
 DBL_MAX = float_info.max
@@ -506,6 +522,19 @@ def cdf(t, v): # cumulative distribution function
         return 1/2 + t*_func_0(v)*ohf(1/2, (v+1)/2, 3/2, -t_t/v)
     return 1 - rbeta(v / (t_t + v), v/2, 1/2)/2
 
+@oideco_C
+def tpval(t, df, tp=2): # t-test p-value
+    match tp:
+        case 0:
+            return cdf(t, df)
+        case 1:
+            return 1 - cdf(t, df)
+        case 2:
+            return 2 * min(cdf(t, df), 1 - cdf(t, df))
+        case 3:
+            return 2 * (1 - cdf(abs(t), df))
+    raise ValueError("invalid test type")
+
 @oideco
 def sstd(arr): # sample stddev
     n = len(arr)
@@ -557,10 +586,15 @@ if __name__ == '__main__':
           for x in __all__ + ['exp', 'gamma', 'lgamma',
                               'log', 'int', 'ceil', 'sqrt',
                               'sum']}
+    glob = {'__builtins__': {}}
     while True:
         try:
-            a = eval(input('>>> '), {'__builtins__': {}}, ns)
-            if a is not None:
-                print(repr(a))
-        except BaseException as e:
+            if t := input('>> '):
+                a = eval(t, glob, ns)
+                if a is not None:
+                    print(repr(a))
+        except EOFError as e:
+            print_exception(type(e), e, e.__traceback__)
+            break
+        except (Exception, KeyboardInterrupt) as e:
             print_exception(type(e), e, e.__traceback__)
