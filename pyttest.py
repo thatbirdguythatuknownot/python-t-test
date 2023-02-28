@@ -15,24 +15,24 @@ MINLOG = math.log(2**-1022)
 
 -- FUNCTIONS --
 
-mean(arr)                    - sample mean (probably also population mean)
+mean(arr, length=None)       - sample mean (probably also population mean)
 pdf(t, v)                    - probability density function
 lnbeta(a, b)                 - natural logarithm (function) of beta function
 labeta(a, b)                 - less accurate beta function
                                (= `exp(lnbeta(a, b))`)
 beta(a, b)                   - beta function
-rbeta(x, p, q)               - regularized incomplete beta function
+rbeta(x, a, b)               - regularized incomplete beta function
 invrbeta(yy, aa, bb)         - inverse function of `rbeta()`
-stdtri(confidence, df)       - inverse function of `cdf()`
+invcdf(confidence, df)       - inverse function of `cdf()`
 tcritv(alpha, df, tn=2)      - critical t value function
-                               ("tail number" can either be 1 or 2)
+                               (`tn` (number of tails) can either be 1 or 2)
+cdf(t, v)                    - cumulative distribution function
 tpval(t, df, tp=2)           - t-test p-value function
-                               ("test type" can be:
+                               (`tp` (test type) can be:
                                 0 for left-tail/lower-tailed t-test,
                                 1 for right-tail/upper-tailed t-test,
                                 2 for two-tail t-test [not symmetric about 0],
                                 3 for two-tail t-test [symmetric about 0])
-cdf(t, v)                    - cumulative distribution function
 sstd(arr)                    - sample standard deviation function
 pstd(arr)                    - population standard deviation function
 pvar(*arrs)                  - pooled variance
@@ -40,11 +40,11 @@ pvar(*arrs)                  - pooled variance
 
 - t-test functions returning (t statistic, degrees of freedom)
 otstat(arr, apmean)           - one-sample t-test
-                                (provide assumed population mean)
+                                (provide `apmean` (assumed population mean) )
 ptstat(arr1, arr2)           - paired samples t-test
 itstat(arr1, arr2, eva=True) - independent samples t-test /
                                unpaired samples t-test / two-sample t-test
-                               (provide "equal variance assumed")
+                               (provide `eva` (equal variance assumed) )
 
 ---------------
 
@@ -67,7 +67,7 @@ from types import FunctionType
 
 __all__ = ['EPS', 'DBL_MAX', 'INF', 'NAN', 'MACHEP', 'MAXLOG', 'MINLOG',
            'mean', 'pdf', 'lnbeta', 'labeta', 'beta', 'rbeta', 'invrbeta',
-           'stdtri', 'tcritv', 'tpval', 'cdf', 'sstd', 'pstd', 'pvar',
+           'stdtri', 'tcritv', 'cdf', 'tpval', 'sstd', 'pstd', 'pvar',
            'otstat', 'ptstat', 'itstat']
 
 EPS = float_info.epsilon
@@ -150,8 +150,14 @@ def ohf(a, b, c, z): # ordinary hypergeometric function (2F1)
     return s
 
 @oideco
-def mean(arr):
-    return sum(arr) / len(arr)
+def mean(arr, length=None):
+    """
+    mean(arr, length=None)
+    - sample mean (probably also population mean)
+    """
+    if length is None:
+        length = len(arr)
+    return sum(arr) / length
 
 @oideco_C
 def _func_0(v):
@@ -176,16 +182,28 @@ def _func_0(v):
 
 @oideco_C
 def pdf(t, v): # probability density function
+    """
+    pdf(t, v)
+    - probability density function
+    """
     return _func_0(v) * (1 + t**2/v)**(~v / 2)
 
 # https://github.com/canerturkmen/betaincder/blob/master/betaincder/c/beta.c
 ##----------------------------##
 @oideco_C
 def lnbeta(a, b): # ln of beta
+    """
+    lnbeta(a, b)
+    - natural logarithm (function) of beta function
+    """
     return lgamma(a) + lgamma(b) - lgamma(a + b)
 
 @oideco_C
 def beta(a, b): # beta function
+    """
+    labeta(a, b)
+    - less accurate beta function (= `exp(lnbeta(a, b))`)
+    """
     return exp(lnbeta(a, b))
 
 ##----------------------------##
@@ -197,6 +215,10 @@ def beta(a, b): # beta function
 labeta = beta
 @oideco_C
 def beta(a, b): # beta function
+    """
+    beta(a, b)
+    - beta function
+    """
     return gamma(a)*gamma(b) / gamma(a + b)
 
 @oideco_C
@@ -223,6 +245,10 @@ def cfbeta(a, b, x): # contfractbeta
 
 @oideco_C
 def rbeta(x, a, b): # regularized beta function
+    """
+    rbeta(x, a, b)
+    - regularized incomplete beta function
+    """
     if x not in {0, 1}:
         _beta = gamma(a+b)/gamma(a)/gamma(b) * x**a * (1-x)**b
         if x < (a+1) / (a+b+2):
@@ -328,6 +354,10 @@ def invrbeta(yy, aa, bb, *, # inverse regularized incomplete beta function
              R_100=range(100), R_8=range(8)):
     # called `invrbeta(x, a, b)` instead of
     # `betaincinv(a, b, x)`/`incbi(a, b, x)`
+    """
+    invrbeta(yy, aa, bb)
+    - inverse function of `rbeta()`
+    """
     if yy <= 0: return 0
     if yy >= 1: return 1
     x0 = yl = 0
@@ -481,49 +511,68 @@ def invrbeta(yy, aa, bb, *, # inverse regularized incomplete beta function
 # stdtr.c
 #----------------------------#
 @oideco_C
-def stdtri(confidence, df):
-    # called `stdtri(confidence, df)` instead of
-    # `stdtri(df, confidence)`
-    p = confidence
-    k = df
-    if k <= 0 or p <= 0 or p >= 1:
+def invcdf(confidence, df):
+    # called `invcdf(confidence, df)` instead of
+    # `invcdf(df, confidence)`
+    """
+    invcdf(confidence, df)
+    - inverse function of `cdf()`
+    """
+    if df <= 0 or confidence <= 0 or confidence >= 1:
         return NAN
-    if 0.25 < p < 0.75:
-        if p == 0.5:
+    if confidence <= 0.25:
+        rflg = -1
+    elif confidence < 0.75:
+        if confidence == 0.5:
             return 0
-        z = invrbeta(abs(1 - 2*p), 0.5, 0.5*k)
-        t = (k*z / (1-z))**(1/2)
-        if p < 0.5:
-            t = -t
-        return t
-    rflg = -1
-    if p >= 0.75:
-        p = 1 - p
+        z = invrbeta(abs(1 - 2*confidence), 0.5, 0.5*df)
+        t = (df*z / (1-z))**(1/2)
+        return t if confidence > 0.5 else -t
+    else:
+        confidence = 1 - confidence
         rflg = 1
-    if DBL_MAX * (z := invrbeta(2*p, 0.5*k, 0.5)) < k:
+    if DBL_MAX * (z := invrbeta(2*confidence, 0.5*df, 0.5)) < df:
         return rflg * INF
-    return rflg * (k/z - k)**(1/2)
+    return rflg * (df/z - df)**(1/2)
 
 #----------------------------#
 ##----------------------------##
 
 @oideco_C
 def tcritv(alpha, df, tn=2): # t critical value
+    """
+    tcritv(alpha, df, tn=2)
+    - critical t value function
+    - `tn` (number of tails) can either be 1 or 2
+    """
     if tn == 2:
         alpha /= 2
     elif tn != 1:
-        raise ValueError("invalid tail number") 
+        raise ValueError("invalid number of tails")
     return stdtri(1 - alpha, df)
     
 
 @oideco_C
 def cdf(t, v): # cumulative distribution function
+    """
+    cdf(t, v)
+    - cumulative distribution function
+    """
     if (t_t := t*t) < v:
         return 1/2 + t*_func_0(v)*ohf(1/2, (v+1)/2, 3/2, -t_t/v)
     return 1 - rbeta(v / (t_t + v), v/2, 1/2)/2
 
 @oideco_C
 def tpval(t, df, tp=2): # t-test p-value
+    """
+    tpval(t, df, tp=2)
+    - t-test p-value function
+    - `tp` (test type) can be:
+    -> 0 for left-tail/lower-tailed t-test
+    -> 1 for right-tail/upper-tailed t-test
+    -> 2 for two-tail t-test [not symmetric about 0]
+    -> 3 for two-tail t-test [symmetric about 0]
+    """
     match tp:
         case 0:
             return cdf(t, df)
@@ -537,18 +586,30 @@ def tpval(t, df, tp=2): # t-test p-value
 
 @oideco
 def sstd(arr): # sample stddev
+    """
+    sstd(arr)
+    - sample standard deviation function
+    """
     n = len(arr)
     arr_mn = mean(arr)
     return (sum([(arr_i - arr_mn)**2 for arr_i in arr]) / (n - 1)) ** (1/2)
 
 @oideco
 def pstd(arr): # population stddev
+    """
+    pstd(arr)
+    - population standard deviation function
+    """
     n = len(arr)
     arr_mn = mean(arr)
     return (sum([(arr_i - arr_mn) ** 2 for arr_i in arr]) / n) ** (1/2)
 
 @oideco
 def pvar(*arrs): # pooled variance / pooled stddev
+    """
+    pvar(*arrs)
+    - pooled variance/pooled standard deviation function
+    """
     l_arr = [*map(len, arrs)]
     return (sum([(l - 1) * sstd(a) ** 2
                   for l, a in zip(l_arr, x)])
@@ -556,11 +617,20 @@ def pvar(*arrs): # pooled variance / pooled stddev
 
 @oideco(2)
 def otstat(arr, apmean): # one-sample t-test
+    """
+    otstat(arr, apmean)
+    - one-sample t-test
+    - provide `apmean` (assumed population mean)
+    """
     n = len(arr)
     return (mean(arr) - apmean) * n**(1/2) / sstd(arr), n - 1
 
 @oideco(2)
 def ptstat(arr1, arr2): # paired samples t-test
+    """
+    ptstat(arr1, arr2)
+    - paired samples t-test
+    """
     diffs = [*map(sub, arr1, arr2)]
     l_diffs = len(diffs)
     return mean(diffs) * l_diffs**(1/2) / sstd(diffs), l_diffs - 1
@@ -569,6 +639,11 @@ def ptstat(arr1, arr2): # paired samples t-test
 def itstat(arr1, arr2, eva=True): # independent samples t-test /
                                   # unpaired samples t-test /
                                   # two-sample t-test
+    """
+    itstat(arr1, arr2, eva=True)
+    - independent samples/unpaired samples/two-sample t-test
+    - provide `eva` (equal variance assumed)
+    """
     mn_diff = mean(arr1) - mean(arr2)
     l_a = len(arr1)
     l_b = len(arr2)
