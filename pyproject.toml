@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name            = "python-ttest"
-version         = "1.0.0"
+version         = "1.0.1"
 description     = "A Python package specifically for Student's t-test."
 readme          = "README.md"
 authors         = [{name = "Crowthebird"}]
