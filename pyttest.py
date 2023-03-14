@@ -67,7 +67,7 @@ from types import FunctionType
 
 __all__ = ['EPS', 'DBL_MAX', 'INF', 'NAN', 'MACHEP', 'MAXLOG', 'MINLOG',
            'mean', 'pdf', 'lnbeta', 'labeta', 'beta', 'rbeta', 'invrbeta',
-           'invcdf', 'tcritv', 'cdf', 'tpval', 'sstd', 'pstd', 'pvar',
+           'stdtri', 'tcritv', 'cdf', 'tpval', 'sstd', 'pstd', 'pvar',
            'otstat', 'ptstat', 'itstat']
 
 EPS = float_info.epsilon
@@ -175,7 +175,7 @@ def _func_0(v):
                 a_val *= i
                 b_val *= i - 1
             dv = 2
-        return a_val / dv / v**(1/2) / b_val
+        return a_val / (dv * b_val * v**(1/2))
     if v == 1:
         return 0.3183098861837907
     raise ValueError("math domain error")
@@ -250,7 +250,7 @@ def rbeta(x, a, b): # regularized beta function
     - regularized incomplete beta function
     """
     if x not in {0, 1}:
-        _beta = gamma(a+b)/gamma(a)/gamma(b) * x**a * (1-x)**b
+        _beta = gamma(a+b)/(gamma(a)*gamma(b)) * x**a * (1-x)**b
         if x < (a+1) / (a+b+2):
             return _beta*cfbeta(a, b, x) / a
         else:
@@ -549,7 +549,7 @@ def tcritv(alpha, df, tn=2): # t critical value
         alpha /= 2
     elif tn != 1:
         raise ValueError("invalid number of tails")
-    return invcdf(1 - alpha, df)
+    return stdtri(1 - alpha, df)
     
 
 @oideco_C
