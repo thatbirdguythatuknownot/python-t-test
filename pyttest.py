@@ -67,7 +67,7 @@ from types import FunctionType
 
 __all__ = ['EPS', 'DBL_MAX', 'INF', 'NAN', 'MACHEP', 'MAXLOG', 'MINLOG',
            'mean', 'pdf', 'lnbeta', 'labeta', 'beta', 'rbeta', 'invrbeta',
-           'stdtri', 'tcritv', 'cdf', 'tpval', 'sstd', 'pstd', 'pvar',
+           'invcdf', 'tcritv', 'cdf', 'tpval', 'sstd', 'pstd', 'pvar',
            'otstat', 'ptstat', 'itstat']
 
 EPS = float_info.epsilon
@@ -549,7 +549,7 @@ def tcritv(alpha, df, tn=2): # t critical value
         alpha /= 2
     elif tn != 1:
         raise ValueError("invalid number of tails")
-    return stdtri(1 - alpha, df)
+    return invcdf(1 - alpha, df)
     
 
 @oideco_C
